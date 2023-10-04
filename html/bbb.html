@@ -1,0 +1,45 @@
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visor de Imágenes de Sentinel</title>
+
+    <!-- Leaflet CSS y JavaScript -->
+    <link href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" rel="stylesheet" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+    <!-- SentinelHub.js para acceder al servicio WMS de Sentinel -->
+    <script src="https://unpkg.com/sentinelhub-js@1.1.0/dist/sentinelhub-js.min.js"></script>
+</head>
+
+<body>
+    <div id="map" style="width: 100%; height: 500px;"></div>
+
+    <script>
+        // Configura el centro del mapa y el nivel de zoom
+        var map = L.map('map').setView([0, 0], 2);
+
+        // Añade la capa base de OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Configura las credenciales y el ID de la capa de Sentinel Hub
+        var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b'; // Reemplaza con tu ID de instancia de Sentinel Hub
+        var layerId = 'NDVI'; // Reemplaza con tu ID de capa de Sentinel Hub
+
+        // Configura el servicio WMS de Sentinel Hub para imágenes de color real
+        var sentinelWMSUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
+
+        // Añade la capa WMS de Sentinel al mapa
+        L.tileLayer.wms(sentinelWMSUrl, {
+            layers: layerId,
+            format: 'image/png',
+            transparent: true,
+            attribution: 'Sentinel Hub'
+            
+        }).addTo(map);
+    </script>
+</body>
+
+</html>

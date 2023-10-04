@@ -1,226 +1,91 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visor Ndvi</title>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.css">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
-    <script src="https://developers.google.com/earth-engine/javascript/api.js"></script>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0"
+		/>
+		<title>Visor NDVI</title>
 
-    <style>
-        #date-selector {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background-color: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            z-index: 999;
-        }
+		<!-- Se incluye Mapbox GL CSS y JavaScript -->
+		<link
+			href="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css"
+			rel="stylesheet"
+		/>
+		<script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
 
-        #geojson-container {
-            margin-top: 10px;
-        }
+		<!-- Se incluye Leaflet CSS y JavaScript -->
+		<link
+			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+			rel="stylesheet"
+		/>
+		<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 
-        #image-gallery {
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            background-color: rgba(255, 255, 255, 0.8); /* Fondo similar al del recuadro de fechas */
-            padding: 10px; /* Espaciado similar al del recuadro de fechas */
-            border: 1px solid #ccc; /* Borde similar al del recuadro de fechas */
-            border-radius: 5px; /* Borde redondeado similar al del recuadro de fechas */
-        }
+		<!-- Mapbox Access Token -->
+		<script>
+			mapboxgl.accessToken =
+				'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
+		</script>
+	</head>
+	<body>
+		<div
+			id="map"
+			style="width: 100%; height: 400px"
+		></div>
 
-        .image-container {
-            width: 150px;
-            height: 150px;
-            margin-right: 10px;
-            overflow: hidden;
-            float: left;
-            border: 10px solid #000;
-            position: relative; /* Importante para posicionar elementos superpuestos */
-        }
+		<!-- Javascript para crear y configurar la instancia de Mapbox -->
+		<script>
+			// Inicializar el mapa
+			var map = new mapboxgl.Map({
+				container: 'map',
+				style: 'mapbox://styles/mapbox/streets-v11',
+				center: [-74.5, 40.5],
+				zoom: 9,
+			});
 
-        .image-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0.7;
-        }
+			// Initialize a Leaflet map as a layer in the Mapbox map
+			var leafletMap = L.map('map').setView([-74.5, 40], 9);
 
-        .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
+			// Define your geometry as a GeoJSON object (replace with your own geometry)
+			var geometry = {
+				type: 'Polygon',
+				coordinates: [
+					[
+                    [4483374.79, 542367.01],
+                    [4538877.44, 542050.84],
+                    [4539840.58, 626154.33],
+                    [4484335.40, 627103.09],
+                    [4483374.79, 542367.01],
+					],
+				],
+			};
 
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
+			var date = '2023-08-01/2023-08-23';
+			// Define the Sentinel Hub parameters
+			var sentinelHubParams = {
+				service: 'WMS',
+				request: 'GetMap',
+                bbox: L.geoJSON(geometry).getBounds().toBBoxString(), // Convert geometry to bounding box
+				layers: 'NDVI',
+                maxcc: 20,
+                height: 256, // Specify the height of the image
+                width: 256, // Specify the width of the image
+				format: 'image/jpeg',
+				time: date,
+				
+			};
 
-        #map {
-            height: calc(100vh - 200px);
-            width: 100%;
-        }
-    </style>
-    <script>
-        var ee = require('https://developers.google.com/earth-engine/javascript/api.js');
-        var map;
-        var apiKey = "AIzaSyC72W-c22Z3AnwjLMbfRP9yVMdIti7ssc0";
-        var imageGallery = document.getElementById('image-gallery');
-        var imageCollection = ee.ImageCollection("COPERNICUS/S2");
-    
-        function init() {
-            mapboxgl.accessToken =
-                'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
-            map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/satellite-streets-v10',
-                center: [-72.325, -38.6261],
-                zoom: 9,
-                attributionControl: false
-            });
-            map.addControl(new mapboxgl.AttributionControl({compact: true}));
-            map.addControl(new mapboxgl.NavigationControl());
-        }
-    
-        function loadGeoJSON() {
-            var input = document.getElementById('archivo-geo');
-            var file = input.files[0];
-    
-            var reader = new FileReader();
-            reader.onload = function (event) {
-                var geojson = JSON.parse(event.target.result);
-                if (geojson) {
-     // Elimina la capa y la fuente del GeoJSON anterior si existen
-                    if (map.getSource('custom-data')) {
-                    map.removeLayer('custom-layer');
-                    map.removeSource('custom-data');
-              }
-                    map.addSource('custom-data', {
-                        type: 'geojson',
-                        data: geojson
-                    });
-    
-                    map.addLayer({
-                        id: 'custom-layer',
-                        type: 'line',
-                        source: 'custom-data',
-                        paint: {
-                            'line-color': '#ff0000',
-                            'line-width': 2
-                        }
-                    });
-    
-                    // Ajustar la ubicación del mapa para mostrar todo el GeoJSON
-                    var bounds = new mapboxgl.LngLatBounds();
-                    geojson.features.forEach(function (feature) {
-                        feature.geometry.coordinates[0].forEach(function (coord) {
-                            bounds.extend(coord.slice(0, 2));
-                        });
-                    });
-                    map.fitBounds(bounds, { padding: 180 });
-                    // Obtener la fecha del GeoJSON cargado
-                    var feature = geojson.features[0];
-                    var date = feature.properties.date;
+			// Construct the Sentinel Hub URL with parameters
+			var sentinelHubUrl =
+				'https://services.sentinel-hub.com/ogc/wms/7922d058-6dd5-4654-ba39-239d8325863b?' +
+				Object.entries(sentinelHubParams)
+					.map((param) => param.join('='))
+					.join('&');
 
-                    // Filtrar las imágenes Sentinel 2 anteriores en Earth Engine
-                    var sentinel2 = ee.ImageCollection("COPERNICUS/S2");
-                    var filteredCollection = sentinel2.filterDate(ee.Date(date), null);
-                    var images = filteredCollection.toList(4).getInfo();
-
-                    // Mostrar las imágenes en el recuadro de la galería de imágenes
-                    imageGallery.innerHTML = '';
-                    images.features.forEach(function (image) {
-                        var imageUrl = image.properties.thumbUrl;
-                        var imageContainer = document.createElement('div');
-                        imageContainer.className = 'image-container';
-                        
-                        // Crear una superposición para el mapa
-                        var mapOverlay = document.createElement('div');
-                        mapOverlay.className = 'image-overlay';
-                        
-                        // Crear la imagen
-                        var img = document.createElement('img');
-                        img.src = imageUrl;
-                        
-                        // Agregar la superposición y la imagen al contenedor
-                        imageContainer.appendChild(mapOverlay);
-                        imageContainer.appendChild(img);
-                        
-                        // Agregar el contenedor a la galería de imágenes
-                        imageGallery.appendChild(imageContainer);
-                    });
-                }
-            };
-            reader.readAsText(file);
-        }
-        function loadSentinelImage() {
-        var startDate = document.getElementById('start-date').value;
-        var endDate = document.getElementById('end-date').value;
-        
-        if (!startDate || !endDate) {
-        alert("Por favor, seleccione las fechas de inicio y finalización.");
-        return;
-    }
-    
-        var sentinel2 = ee.ImageCollection("COPERNICUS/S2");
-        var filteredCollection = sentinel2.filterDate(startDate, endDate);
-        var image = filteredCollection.first();
-    
-        var imageUrl = image.select(['B4', 'B3', 'B2']).getThumbURL({
-            'min': 0,
-            'max': 3000,
-            'dimensions': 512,
-            'format': 'jpg'
-        });
-    
-    // Agregar la imagen sin esperar al evento de carga del mapa
-    map.addSource('sentinel-image', {
-        type: 'image',
-        url: imageUrl,
-        coordinates: [
-            [-72.325, -38.6261], // Southwest coordinates
-            [-72.325, -38.6261], // Northwest coordinates
-            [-72.325, -38.6261], // Northeast coordinates
-            [-72.325, -38.6261]  // Southeast coordinates
-        ]
-    });
-
-    map.addLayer({
-        id: 'sentinel-layer',
-        type: 'raster',
-        source: ee.ImageCollection("COPERNICUS/S2"),
-        paint: {}
-    });
-}
-    </script>
-</head>
-
-<body onLoad="init()">  
-    <div id="date-selector">
-        <label for="start-date">Fecha de inicio:</label>
-        <input type="date" id="start-date">
-        
-        <label for="end-date">Fecha de finalización:</label>
-        <input type="date" id="end-date">
-        
-        <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
-        <div id="geojson-container">
-            <input type="file" id="archivo-geo" accept=".geojson" onchange="loadGeoJSON()">
-            <button onclick="loadSentinelImage()">Cargar imágenes</button>
-        </div>
-    </div>
-    <div id="map"></div>
-    <div id="image-gallery"></div>
-</body>
+			console.log(sentinelHubUrl);
+			// Add a Sentinel-2 tile layer from Sentinel Hub to the Leaflet map
+			L.tileLayer(sentinelHubUrl).addTo(leafletMap);
+		</script>
+	</body>
 </html>
