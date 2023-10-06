@@ -15,13 +15,6 @@
 		/>
 		<script src="https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js"></script>
 
-		<!-- Se incluye Leaflet CSS y JavaScript -->
-		<link
-			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
-			rel="stylesheet"
-		/>
-		<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-
 		<!-- Mapbox Access Token -->
 		<script>
 			mapboxgl.accessToken =
@@ -34,7 +27,6 @@
 			style="width: 100%; height: 400px"
 		></div>
 
-		<!-- Javascript para crear y configurar la instancia de Mapbox -->
 		<script>
 			// Inicializar el mapa
 			var map = new mapboxgl.Map({
@@ -44,46 +36,40 @@
 				zoom: 9,
 			});
 
-			// Initialize a Leaflet map as a layer in the Mapbox map
-			var leafletMap = L.map('map').setView([-74.5, 40], 9);
+			var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
+			var sentinelUrl =
+				'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
 
-			// Define your geometry as a GeoJSON object (replace with your own geometry)
-			var geometry = {
-				type: 'Polygon',
-				coordinates: [
-					[
-						[4483374.79, 542367.01],
-						[4538877.44, 542050.84],
-						[4539840.58, 626154.33],
-						[4484335.40, 627103.09],
-						[4483374.79, 542367.01],
+			var params = {
+				SERVICE: 'WMS',
+				REQUEST: 'GetMap',
+				LAYERS: 'NDVI',
+				FORMAT: 'image/png',
+				WIDTH: '256',
+				HEIGHT: '256',
+				BBOX: '{bbox-epsg-3857}',
+			};
+
+			map.on('load', function () {
+				map.addSource('sentinel-hub-wms', {
+					type: 'raster',
+					tileSize: 256,
+					tiles: [
+						sentinelUrl +
+							'?' +
+							Object.entries(params)
+								.map((p) => p.join('='))
+								.join('&'),
 					],
-				],
-			};
+				});
 
-			var date = '2021-07-15/2022-07-15';
-			// Define the Sentinel Hub parameters
-			var sentinelHubParams = {
-				service: 'WMS',
-				request: 'GetMap',
-				layers: 'NDVI',
-				format: 'image/jpeg',
-				bbox: L.geoJSON(geometry).getBounds().toBBoxString(), // Convert geometry to bounding box
-				width: 512, // Specify the width of the image
-				height: 512, // Specify the height of the image
-				time: date,
-			};
-
-			// Construct the Sentinel Hub URL with parameters
-			var sentinelHubUrl =
-				'https://services.sentinel-hub.com/ogc/wms/7922d058-6dd5-4654-ba39-239d8325863b?' +
-				Object.entries(sentinelHubParams)
-					.map((param) => param.join('='))
-					.join('&');
-
-			console.log(sentinelHubUrl);
-			// Add a Sentinel-2 tile layer from Sentinel Hub to the Leaflet map
-			L.tileLayer(sentinelHubUrl).addTo(leafletMap);
+				map.addLayer({
+					id: 'sentinel-hub-layer',
+					type: 'raster',
+					source: 'sentinel-hub-wms',
+					paint: {},
+				});
+			});
 		</script>
 	</body>
 </html>
