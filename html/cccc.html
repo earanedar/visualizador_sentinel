@@ -72,45 +72,46 @@
         var map;
         var sentinelLayerVisible = true; // Variable para rastrear el estado de la capa
         
-        function init() {
-            mapboxgl.accessToken =
-                'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
-            map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/satellite-streets-v10',
-                center: [-72.325, -38.6261],
-                zoom: 9,
-                attributionControl: false
-            });
-            map.addControl(new mapboxgl.AttributionControl({ compact: true }));
-            map.addControl(new mapboxgl.NavigationControl());
-
-            // Código de carga de imagen Sentinel Hub
-            var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
-            var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
-
-            var params = {
-                SERVICE: 'WMS',
-                REQUEST: 'GetMap',
-                LAYERS: 'NDVI',
-                FORMAT: 'image/png',
-                WIDTH: '256',
-                HEIGHT: '256',
-                BBOX: '{bbox-epsg-3857}',
-                TIME: '2022-03-29/2022-05-29'
-            };
-
-            map.on('load', function () {
-                map.addSource('sentinel-hub-wms', {
-                    type: 'raster',
-                    tileSize: 256,
-                    tiles: [
-                        sentinelUrl + '?' +
-                            Object.entries(params)
-                                .map((p) => p.join('='))
-                                .join('&'),
-                    ],
+        function init(_layer, fechaInicio, fechaFin, cargaInicial) {
+                mapboxgl.accessToken =
+                    'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
+                map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/mapbox/satellite-streets-v10',
+                    center: [-72.325, -38.6261],
+                    zoom: 9,
+                    attributionControl: false
                 });
+                map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+                map.addControl(new mapboxgl.NavigationControl());
+
+                // Código de carga de imagen Sentinel Hub
+                var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
+                var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
+
+                var timeRange = fechaInicio + '/' + fechaFin;
+                var params = {
+                    SERVICE: 'WMS',
+                    REQUEST: 'GetMap',
+                    LAYERS: _layer,
+                    FORMAT: 'image/png',
+                    WIDTH: '256',
+                    HEIGHT: '256',
+                    BBOX: '{bbox-epsg-3857}',
+                    TIME: timeRange
+                };
+
+                map.on('load', function () {
+                    map.addSource('sentinel-hub-wms', {
+                        type: 'raster',
+                        tileSize: 256,
+                        tiles: [
+                            sentinelUrl + '?' +
+                                Object.entries(params)
+                                    .map((p) => p.join('='))
+                                    .join('&'),
+                        ],
+                    });
 
                 map.addLayer({
                     id: 'sentinel-hub-layer',
@@ -119,51 +120,34 @@
                     paint: {},
                 });
 
-        var toggleSentinelButton = document.createElement('button');
-            toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
-            toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
-            toggleSentinelButton.onclick = function () {
-                toggleSentinelLayer();
-            };
+                if(cargaInicial == true)
+                {
+                    var toggleSentinelButton = document.createElement('button');
+                        toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
+                        toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
+                        toggleSentinelButton.onclick = function () {
+                            toggleSentinelLayer();
+                        };
 
- // Agregar evento change a los campos de fecha
- document.getElementById('start-date').addEventListener('change', toggleSentinelLayer);
-    document.getElementById('end-date').addEventListener('change', toggleSentinelLayer);
-
- // Agregar el botón al div "date-selector"
- document.getElementById('date-selector').appendChild(toggleSentinelButton);
-
-             });
+                    // Agregar el botón al div "date-selector"
+                    document.getElementById('date-selector').appendChild(toggleSentinelButton);
+                        map.addControl({
+                            position: 'top-left',
+                            element: toggleSentinelButton
+                            
+                        });
+                }
+            });
         }
 
-
         function toggleSentinelLayer() {
-    var startDate = document.getElementById('start-date').value;
-    var endDate = document.getElementById('end-date').value;
-
-    if (startDate && endDate) {
-        var timeRange = startDate + '/' + endDate;
-        var params = {
-            SERVICE: 'WMS',
-            REQUEST: 'GetMap',
-            LAYERS: 'NDVI',
-            FORMAT: 'image/png',
-            WIDTH: '256',
-            HEIGHT: '256',
-            BBOX: '{bbox-epsg-3857}',
-            TIME: timeRange // Actualizar el parámetro TIME con el rango de fechas seleccionado
-        };
-
-        map.getSource('sentinel-hub-wms').tiles[0] = sentinelUrl + '?' +
-            Object.entries(params)
-                .map((p) => p.join('='))
-                .join('&');
-
-        map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
-        sentinelLayerVisible = true;
-    }
-}
-console.log(toggleSentinelLayer);
+            if (sentinelLayerVisible) {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
+            } else {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
+            }
+            sentinelLayerVisible = !sentinelLayerVisible; // Cambiar el estado
+        }
 
         function loadGeoJSON() {
             var input = document.getElementById('archivo-geo');
@@ -206,17 +190,17 @@ console.log(toggleSentinelLayer);
 
             reader.readAsText(file);
         }
-        
     </script>
 </head>
 
-<body onLoad="init()">
+<body onLoad="init('NDVI','','',true)">
     <div id="date-selector">
         <label for="start-date">Fecha de inicio:</label>
         <input type="date" id="start-date">
-
+        
         <label for="end-date">Fecha de finalización:</label>
         <input type="date" id="end-date">
+        <button onclick="fechaSelector();" id="btn-fechas">Buscar por fecha:</button>
     
         <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
         <div id="geojson-container">
@@ -224,7 +208,7 @@ console.log(toggleSentinelLayer);
         </div>
     
         <div><label for="layer-selector">Capas seleccionables:</label>
-            <select id="layer-selector">
+            <select id="layer-selector" onchange="layerSelector();">
                 <option value="NDVI">NDVI</option>
                 <option value="FALSE-COLOR">FALSE-COLOR</option>
                 <option value="NATURAL-COLOR">NATURAL-COLOR</option>
@@ -237,3 +221,58 @@ console.log(toggleSentinelLayer);
     <div id="map"></div>
 </body>
 </html>
+<script>
+function layerSelector() {
+    var layerSelect = document.getElementById("layer-selector").value;
+    var fechaInicio = document.getElementById("start-date").value;
+    var fechaFin = document.getElementById("end-date").value;
+    if(fechaInicio != "" || fechaFin != "")
+    {
+        if(fechaInicio == "" || fechaFin == "")
+        {
+            alert("Debe seleccionar ambas fechas.");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else if(Date.parse(fechaFin) < Date.parse(fechaInicio)) {
+            alert("La fecha final debe ser mayor a la fecha inicial");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else if ((Date.parse(fechaFin) - Date.parse(fechaInicio))/(1000*60*60*24) > 10)
+        {
+            alert("El rango de busqueda de fechas es hasta 10 días");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else
+        {
+            init(layerSelect,fechaInicio,fechaFin, false);
+        }
+    }
+    else
+    {
+        init(layerSelect,fechaInicio,fechaFin, false);
+    }
+}
+function fechaSelector() {
+    var layerSelect = document.getElementById("layer-selector").value;
+    var fechaInicio = document.getElementById("start-date").value;
+    var fechaFin = document.getElementById("end-date").value;
+    if(fechaInicio == "" || fechaFin == "")
+    {
+        alert("Debe seleccionar ambas fechas.");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else  if(Date.parse(fechaFin) < Date.parse(fechaInicio)) {
+        alert("La fecha final debe ser mayor a la fecha inicial");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else if((Date.parse(fechaFin) - Date.parse(fechaInicio))/(1000*60*60*24) > 10)
+    {
+        alert("El rango de busqueda de fechas es hasta 10 días");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else
+    {
+        init(layerSelect,fechaInicio,fechaFin, false);
+    }
+}
+</script>
