@@ -6,8 +6,7 @@
     <title>Visor Ndvi</title>
     <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.css">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
-    <script src="https://developers.google.com/earth-engine/javascript/api.js"></script>
-
+  
     <style>
         #date-selector {
             position: absolute;
@@ -24,18 +23,6 @@
             margin-top: 10px;
         }
 
-        #image-gallery {
-            position: absolute;
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 999;
-            background-color: rgba(255, 255, 255, 0.8); /* Fondo similar al del recuadro de fechas */
-            padding: 10px; /* Espaciado similar al del recuadro de fechas */
-            border: 1px solid #ccc; /* Borde similar al del recuadro de fechas */
-            border-radius: 5px; /* Borde redondeado similar al del recuadro de fechas */
-        }
-
         .image-container {
             width: 150px;
             height: 150px;
@@ -43,7 +30,7 @@
             overflow: hidden;
             float: left;
             border: 10px solid #000;
-            position: relative; /* Importante para posicionar elementos superpuestos */
+            position: relative;
         }
 
         .image-overlay {
@@ -71,14 +58,20 @@
             height: calc(100vh - 200px);
             width: 100%;
         }
+
+                /* Estilos para el botón de encendido/apagado */
+                .mapboxgl-ctrl-icon {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
     </style>
     <script>
-        var ee = require('https://developers.google.com/earth-engine/javascript/api.js');
         var map;
-        var apiKey = "AIzaSyC72W-c22Z3AnwjLMbfRP9yVMdIti7ssc0";
-        var imageGallery = document.getElementById('image-gallery');
-        var imageCollection = ee.ImageCollection("COPERNICUS/S2");
-    
+        var sentinelLayerVisible = true; // Variable para rastrear el estado de la capa
+        
         function init() {
             mapboxgl.accessToken =
                 'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
@@ -89,28 +82,86 @@
                 zoom: 9,
                 attributionControl: false
             });
-            map.addControl(new mapboxgl.AttributionControl({compact: true}));
+            map.addControl(new mapboxgl.AttributionControl({ compact: true }));
             map.addControl(new mapboxgl.NavigationControl());
+
+            // Código de carga de imagen Sentinel Hub
+            var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
+            var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
+
+            var params = {
+                SERVICE: 'WMS',
+                REQUEST: 'GetMap',
+                LAYERS: 'NDVI',
+                FORMAT: 'image/png',
+                WIDTH: '256',
+                HEIGHT: '256',
+                BBOX: '{bbox-epsg-3857}',
+            };
+
+            map.on('load', function () {
+                map.addSource('sentinel-hub-wms', {
+                    type: 'raster',
+                    tileSize: 256,
+                    tiles: [
+                        sentinelUrl + '?' +
+                            Object.entries(params)
+                                .map((p) => p.join('='))
+                                .join('&'),
+                    ],
+                });
+
+                map.addLayer({
+                    id: 'sentinel-hub-layer',
+                    type: 'raster',
+                    source: 'sentinel-hub-wms',
+                    paint: {},
+                });
+
+        var toggleSentinelButton = document.createElement('button');
+            toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
+            toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
+            toggleSentinelButton.onclick = function () {
+                toggleSentinelLayer();
+            };
+ // Agregar el botón al div "date-selector"
+ document.getElementById('date-selector').appendChild(toggleSentinelButton);
+
+            map.addControl({
+                position: 'top-left',
+                element: toggleSentinelButton
+                
+            });
+             });
         }
-    
+
+
+        function toggleSentinelLayer() {
+            if (sentinelLayerVisible) {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
+            } else {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
+            }
+            sentinelLayerVisible = !sentinelLayerVisible; // Cambiar el estado
+        }
         function loadGeoJSON() {
             var input = document.getElementById('archivo-geo');
             var file = input.files[0];
-    
+
             var reader = new FileReader();
             reader.onload = function (event) {
                 var geojson = JSON.parse(event.target.result);
                 if (geojson) {
-     // Elimina la capa y la fuente del GeoJSON anterior si existen
+                    // Elimina la capa y la fuente del GeoJSON anterior si existen
                     if (map.getSource('custom-data')) {
-                    map.removeLayer('custom-layer');
-                    map.removeSource('custom-data');
-              }
+                        map.removeLayer('custom-layer');
+                        map.removeSource('custom-data');
+                    }
                     map.addSource('custom-data', {
                         type: 'geojson',
                         data: geojson
                     });
-    
+
                     map.addLayer({
                         id: 'custom-layer',
                         type: 'line',
@@ -120,7 +171,7 @@
                             'line-width': 2
                         }
                     });
-    
+
                     // Ajustar la ubicación del mapa para mostrar todo el GeoJSON
                     var bounds = new mapboxgl.LngLatBounds();
                     geojson.features.forEach(function (feature) {
@@ -129,98 +180,38 @@
                         });
                     });
                     map.fitBounds(bounds, { padding: 180 });
-                    // Obtener la fecha del GeoJSON cargado
-                    var feature = geojson.features[0];
-                    var date = feature.properties.date;
-
-                    // Filtrar las imágenes Sentinel 2 anteriores en Earth Engine
-                    var sentinel2 = ee.ImageCollection("COPERNICUS/S2");
-                    var filteredCollection = sentinel2.filterDate(ee.Date(date), null);
-                    var images = filteredCollection.toList(4).getInfo();
-
-                    // Mostrar las imágenes en el recuadro de la galería de imágenes
-                    imageGallery.innerHTML = '';
-                    images.features.forEach(function (image) {
-                        var imageUrl = image.properties.thumbUrl;
-                        var imageContainer = document.createElement('div');
-                        imageContainer.className = 'image-container';
-                        
-                        // Crear una superposición para el mapa
-                        var mapOverlay = document.createElement('div');
-                        mapOverlay.className = 'image-overlay';
-                        
-                        // Crear la imagen
-                        var img = document.createElement('img');
-                        img.src = imageUrl;
-                        
-                        // Agregar la superposición y la imagen al contenedor
-                        imageContainer.appendChild(mapOverlay);
-                        imageContainer.appendChild(img);
-                        
-                        // Agregar el contenedor a la galería de imágenes
-                        imageGallery.appendChild(imageContainer);
-                    });
                 }
             };
+
             reader.readAsText(file);
         }
-        function loadSentinelImage() {
-        var startDate = document.getElementById('start-date').value;
-        var endDate = document.getElementById('end-date').value;
-        
-        if (!startDate || !endDate) {
-        alert("Por favor, seleccione las fechas de inicio y finalización.");
-        return;
-    }
-    
-        var sentinel2 = ee.ImageCollection("COPERNICUS/S2");
-        var filteredCollection = sentinel2.filterDate(startDate, endDate);
-        var image = filteredCollection.first();
-    
-        var imageUrl = image.select(['B4', 'B3', 'B2']).getThumbURL({
-            'min': 0,
-            'max': 3000,
-            'dimensions': 512,
-            'format': 'jpg'
-        });
-    
-    // Agregar la imagen sin esperar al evento de carga del mapa
-    map.addSource('sentinel-image', {
-        type: 'image',
-        url: imageUrl,
-        coordinates: [
-            [-72.325, -38.6261], // Southwest coordinates
-            [-72.325, -38.6261], // Northwest coordinates
-            [-72.325, -38.6261], // Northeast coordinates
-            [-72.325, -38.6261]  // Southeast coordinates
-        ]
-    });
-
-    map.addLayer({
-        id: 'sentinel-layer',
-        type: 'raster',
-        source: ee.ImageCollection("COPERNICUS/S2"),
-        paint: {}
-    });
-}
     </script>
 </head>
 
-<body onLoad="init()">  
+<body onLoad="init()">
     <div id="date-selector">
         <label for="start-date">Fecha de inicio:</label>
         <input type="date" id="start-date">
         
         <label for="end-date">Fecha de finalización:</label>
         <input type="date" id="end-date">
-        
+    
         <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
         <div id="geojson-container">
             <input type="file" id="archivo-geo" accept=".geojson" onchange="loadGeoJSON()">
-            <button onclick="loadSentinelImage()">Cargar imágenes</button>
         </div>
-    </div>
+    
+        <div><label for="layer-selector">Capas seleccionables:</label>
+            <select id="layer-selector">
+                <option value="NDVI">NDVI</option>
+                <option value="FALSE-COLOR">FALSE-COLOR</option>
+                <option value="NATURAL-COLOR">NATURAL-COLOR</option>
+            </select></div>
+        
+
+        <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
+        <button id="toggle-sentinel-button">Toggle Sentinel Image</button></div>
+        
     <div id="map"></div>
-    <div id="image-gallery"></div>
 </body>
 </html>

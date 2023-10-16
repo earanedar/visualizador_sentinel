@@ -85,31 +85,6 @@
             map.addControl(new mapboxgl.AttributionControl({ compact: true }));
             map.addControl(new mapboxgl.NavigationControl());
 
-
-    // Obtén la referencia a la lista desplegable 'layer-selector'
-    var layerSelector = document.getElementById('layer-selector');
-
-    // Define las opciones de capa de Sentinel Hub
-    var layerOptions = [
-        { value: 'NDVI', label: 'NDVI' },
-        { value: 'FALSE-COLOR', label: 'FALSE-COLOR' },
-        { value: 'NATURAL-COLOR', label: 'NATURAL-COLOR' },
-    ];
-
-    // Recorre las opciones y agrégalas a la lista desplegable
-    layerOptions.forEach(function (option) {
-        var optionElement = document.createElement('option');
-        optionElement.value = option.value;
-        optionElement.textContent = option.label;
-        layerSelector.appendChild(optionElement);
-    });
-
-    // Agrega un evento onclick para cambiar el parámetro 'layer' en Sentinel Hub
-    layerSelector.onchange = function () {
-        var selectedLayer = layerSelector.value;
-        updateSentinelLayer(selectedLayer);
-    };
-
             // Código de carga de imagen Sentinel Hub
             var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
             var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
@@ -122,23 +97,20 @@
                 WIDTH: '256',
                 HEIGHT: '256',
                 BBOX: '{bbox-epsg-3857}',
+                TIME: '2022-03-29/2022-05-29'
             };
 
             map.on('load', function () {
                 map.addSource('sentinel-hub-wms', {
-        type: 'raster',
-        tileSize: 256,
-        tiles: function () {
-            params.LAYERS = document.getElementById('layer-selector').value;
-            return [
-                sentinelUrl + '?' +
-                Object.entries(params)
-                    .map((p) => p.join('='))
-                    .join('&'),
-            ];
-        }
-    });
-
+                    type: 'raster',
+                    tileSize: 256,
+                    tiles: [
+                        sentinelUrl + '?' +
+                            Object.entries(params)
+                                .map((p) => p.join('='))
+                                .join('&'),
+                    ],
+                });
 
                 map.addLayer({
                     id: 'sentinel-hub-layer',
@@ -153,41 +125,45 @@
             toggleSentinelButton.onclick = function () {
                 toggleSentinelLayer();
             };
+
+ // Agregar evento change a los campos de fecha
+ document.getElementById('start-date').addEventListener('change', toggleSentinelLayer);
+    document.getElementById('end-date').addEventListener('change', toggleSentinelLayer);
+
  // Agregar el botón al div "date-selector"
  document.getElementById('date-selector').appendChild(toggleSentinelButton);
 
-            map.addControl({
-                position: 'top-left',
-                element: toggleSentinelButton
-                
-            });
              });
         }
 
-        function updateSentinelLayer(selectedLayer) {
-    // Actualiza el parámetro 'LAYER' en los parámetros WMS
-    params.LAYERS = selectedLayer;
 
-    // Recarga la capa de Sentinel Hub
-    map.getSource('sentinel-hub-wms').tiles[0] = sentinelUrl + '?' +
-        Object.entries(params)
-            .map((p) => p.join('='))
-            .join('&');
+        function toggleSentinelLayer() {
+    var startDate = document.getElementById('start-date').value;
+    var endDate = document.getElementById('end-date').value;
 
-    // Cambia el estado de visibilidad según sea necesario
-    if (!sentinelLayerVisible) {
-        toggleSentinelLayer();
-    }
-}
+    if (startDate && endDate) {
+        var timeRange = startDate + '/' + endDate;
+        var params = {
+            SERVICE: 'WMS',
+            REQUEST: 'GetMap',
+            LAYERS: 'NDVI',
+            FORMAT: 'image/png',
+            WIDTH: '256',
+            HEIGHT: '256',
+            BBOX: '{bbox-epsg-3857}',
+            TIME: timeRange // Actualizar el parámetro TIME con el rango de fechas seleccionado
+        };
 
-function toggleSentinelLayer() {
-    if (sentinelLayerVisible) {
-        map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
-    } else {
+        map.getSource('sentinel-hub-wms').tiles[0] = sentinelUrl + '?' +
+            Object.entries(params)
+                .map((p) => p.join('='))
+                .join('&');
+
         map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
+        sentinelLayerVisible = true;
     }
-    sentinelLayerVisible = !sentinelLayerVisible;
 }
+console.log(toggleSentinelLayer);
 
         function loadGeoJSON() {
             var input = document.getElementById('archivo-geo');
@@ -227,9 +203,10 @@ function toggleSentinelLayer() {
                     map.fitBounds(bounds, { padding: 180 });
                 }
             };
-          
+
             reader.readAsText(file);
         }
+        
     </script>
 </head>
 
@@ -237,7 +214,7 @@ function toggleSentinelLayer() {
     <div id="date-selector">
         <label for="start-date">Fecha de inicio:</label>
         <input type="date" id="start-date">
-        
+
         <label for="end-date">Fecha de finalización:</label>
         <input type="date" id="end-date">
     
@@ -247,8 +224,11 @@ function toggleSentinelLayer() {
         </div>
     
         <div><label for="layer-selector">Capas seleccionables:</label>
-            <select id="layer-selector"></select>
-        </div>
+            <select id="layer-selector">
+                <option value="NDVI">NDVI</option>
+                <option value="FALSE-COLOR">FALSE-COLOR</option>
+                <option value="NATURAL-COLOR">NATURAL-COLOR</option>
+            </select></div>
         
 
         <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
