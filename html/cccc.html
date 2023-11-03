@@ -134,11 +134,17 @@
                         map.addControl({
                             position: 'top-left',
                             element: toggleSentinelButton
-                            
                         });
                 }
+                if (cargaInicial == false) {
+            // Ajusta el mapa para mostrar el GeoJSON nuevamente después de cargar la capa
+            map.once('moveend', function () {
+                map.fitBounds(bounds, { padding: 180 });
             });
         }
+    });
+}
+        
 
         function toggleSentinelLayer() {
             if (sentinelLayerVisible) {
@@ -148,14 +154,13 @@
             }
             sentinelLayerVisible = !sentinelLayerVisible; // Cambiar el estado
         }
-
-        function loadGeoJSON() {
+        var bounds; // Declarar la variable bounds fuera de las funciones
+        function loadGeoJSON() { 
             var input = document.getElementById('archivo-geo');
             var file = input.files[0];
-
             var reader = new FileReader();
             reader.onload = function (event) {
-                var geojson = JSON.parse(event.target.result);
+                let geojson = JSON.parse(event.target.result);
                 if (geojson) {
                     // Elimina la capa y la fuente del GeoJSON anterior si existen
                     if (map.getSource('custom-data')) {
@@ -178,7 +183,7 @@
                     });
 
                     // Ajustar la ubicación del mapa para mostrar todo el GeoJSON
-                    var bounds = new mapboxgl.LngLatBounds();
+                    bounds = new mapboxgl.LngLatBounds(); // Actualiza bounds
                     geojson.features.forEach(function (feature) {
                         feature.geometry.coordinates[0].forEach(function (coord) {
                             bounds.extend(coord.slice(0, 2));
@@ -242,9 +247,14 @@ function layerSelector() {
             alert("El rango de busqueda de fechas es hasta 10 días");
             document.getElementById("layer-selector").value = "NDVI"
         }
-        else
-        {
-            init(layerSelect,fechaInicio,fechaFin, false);
+        else {
+            // Inicializa la capa con el nuevo valor
+            init(layerSelect, fechaInicio, fechaFin, false);
+            
+            // Ajusta el mapa para mostrar el GeoJSON nuevamente
+            map.once('moveend', function() {
+                map.fitBounds(bounds, { padding: 180 });
+            });
         }
     }
     else

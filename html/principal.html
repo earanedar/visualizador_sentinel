@@ -67,6 +67,17 @@
             padding: 5px 10px;
             cursor: pointer;
         }
+         /* Estilos para la tabla de información climática */
+         table {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 999;
+        }
     </style>
     <script>
         var map;
@@ -134,7 +145,6 @@
                         map.addControl({
                             position: 'top-left',
                             element: toggleSentinelButton
-                            
                         });
                 }
             });
@@ -152,10 +162,9 @@
         function loadGeoJSON() {
             var input = document.getElementById('archivo-geo');
             var file = input.files[0];
-
             var reader = new FileReader();
             reader.onload = function (event) {
-                var geojson = JSON.parse(event.target.result);
+                let geojson = JSON.parse(event.target.result);
                 if (geojson) {
                     // Elimina la capa y la fuente del GeoJSON anterior si existen
                     if (map.getSource('custom-data')) {
@@ -178,7 +187,7 @@
                     });
 
                     // Ajustar la ubicación del mapa para mostrar todo el GeoJSON
-                    var bounds = new mapboxgl.LngLatBounds();
+                    let bounds = new mapboxgl.LngLatBounds();
                     geojson.features.forEach(function (feature) {
                         feature.geometry.coordinates[0].forEach(function (coord) {
                             bounds.extend(coord.slice(0, 2));
@@ -190,39 +199,7 @@
 
             reader.readAsText(file);
         }
-    </script>
-</head>
-
-<body onLoad="init('NDVI','','',true)">
-    <div id="date-selector">
-        <label for="start-date">Fecha de inicio:</label>
-        <input type="date" id="start-date">
-        
-        <label for="end-date">Fecha de finalización:</label>
-        <input type="date" id="end-date">
-        <button onclick="fechaSelector();" id="btn-fechas">Buscar por fecha:</button>
-    
-        <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
-        <div id="geojson-container">
-            <input type="file" id="archivo-geo" accept=".geojson" onchange="loadGeoJSON()">
-        </div>
-    
-        <div><label for="layer-selector">Capas seleccionables:</label>
-            <select id="layer-selector" onchange="layerSelector();">
-                <option value="NDVI">NDVI</option>
-                <option value="FALSE-COLOR">FALSE-COLOR</option>
-                <option value="NATURAL-COLOR">NATURAL-COLOR</option>
-            </select></div>
-        
-
-        <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
-        <button id="toggle-sentinel-button">Toggle Sentinel Image</button></div>
-        
-    <div id="map"></div>
-</body>
-</html>
-<script>
-function layerSelector() {
+        function layerSelector() {
     var layerSelect = document.getElementById("layer-selector").value;
     var fechaInicio = document.getElementById("start-date").value;
     var fechaFin = document.getElementById("end-date").value;
@@ -275,4 +252,125 @@ function fechaSelector() {
         init(layerSelect,fechaInicio,fechaFin, false);
     }
 }
-</script>
+
+
+ // Función para obtener información climática basada en coordenadas
+function obtenerInformacionClimatica() {
+    var apiKey = 'ecaf4a7ee8f9f1035a119f6cdc9f8e87'; // Reemplaza con tu clave de API real de OpenWeatherMap
+    var tabla = document.getElementById('clima-table');
+    
+    // Función para actualizar los datos climáticos en la tabla
+    function actualizarDatosClimaticos(ciudad) {
+        fetch(`https://api.openweathermap.org/data/2.5/weather?q=${ciudad}&appid=${apiKey}`)
+            .then(response => response.json())
+            .then(data => {
+                var fecha = new Date(data.dt * 1000).toLocaleDateString();
+                var temperatura = (data.main.temp - 273.15).toFixed(2); // Convertir de Kelvin a Celsius
+                var descripcionClima = data.weather[0].description;
+                var humedad = data.main.humidity;
+                var velocidadViento = data.wind.speed;
+
+                // Limpia la tabla antes de agregar nuevos datos
+                tabla.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Temperatura (°C)</th>
+                            <th>Descripción del clima</th>
+                            <th>Humedad (%)</th>
+                            <th>Viento (km/h)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clima-table"></tbody>
+                `;
+
+                // Agrega una fila con los datos climáticos
+                var newRow = tabla.insertRow(tabla.rows.length);
+                var cell1 = newRow.insertCell(0);
+                var cell2 = newRow.insertCell(1);
+                var cell3 = newRow.insertCell(2);
+                var cell4 = newRow.insertCell(3);
+                var cell5 = newRow.insertCell(4);
+
+                cell1.innerHTML = fecha;
+                cell2.innerHTML = temperatura;
+                cell3.innerHTML = descripcionClima;
+                cell4.innerHTML = humedad;
+                cell5.innerHTML = velocidadViento;
+            })
+            .catch(error => {
+                console.error('Error al obtener datos climáticos:', error);
+            });
+    }
+
+    // Obtener la ubicación actual del centro del mapa
+    var center = map.getCenter();
+    var longitud = center.lng;
+    var latitud = center.lat;
+
+    // Utilizar coordenadas para determinar la ciudad
+    fetch(`https://api.openweathermap.org/data/2.5/find?lat=${latitud}&lon=${longitud}&cnt=1&appid=${apiKey}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.list && data.list.length > 0) {
+                var ciudad = data.list[0].name;
+                actualizarDatosClimaticos(ciudad);
+            }
+        })
+        .catch(error => {
+            console.error('Error al obtener datos de ubicación:', error);
+        });
+}
+
+map.on('moveend', function () {
+    obtenerInformacionClimatica(); // Actualiza los datos climáticos cuando el mapa se mueve
+});
+    </script>
+
+
+<table>
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Temperatura (°C)</th>
+            <th>Descripción del clima</th>
+            <th>Humedad (%)</th>
+            <th>Viento (km/h)</th>
+        </tr>
+    </thead>
+    <tbody id="clima-table">
+        <!-- Aquí se agregarán las filas de datos climáticos -->
+    </tbody>
+</table>
+
+
+</head>
+
+<body onLoad="init('NDVI','','',true)">
+    <div id="date-selector">
+        <label for="start-date">Fecha de inicio:</label>
+        <input type="date" id="start-date">
+        
+        <label for="end-date">Fecha de finalización:</label>
+        <input type="date" id="end-date">
+        <button onclick="fechaSelector();" id="btn-fechas">Buscar por fecha:</button>
+    
+        <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
+        <div id="geojson-container">
+            <input type="file" id="archivo-geo" accept=".geojson" onchange="loadGeoJSON()">
+        </div>
+    
+        <div><label for="layer-selector">Capas seleccionables:</label>
+            <select id="layer-selector" onchange="layerSelector();">
+                <option value="NDVI">NDVI</option>
+                <option value="FALSE-COLOR">FALSE-COLOR</option>
+                <option value="NATURAL-COLOR">NATURAL-COLOR</option>
+            </select></div>
+        
+
+        <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
+        <button id="toggle-sentinel-button">Toggle Sentinel Image</button></div>
+        <button onclick="obtenerInformacionClimatica();">Obtener Información Climática</button>
+    <div id="map"></div>
+</body>
+</html>

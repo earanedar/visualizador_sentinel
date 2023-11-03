@@ -10,7 +10,7 @@
     <style>
         #date-selector {
             position: absolute;
-            top: 20px;
+            top: 30px;
             left: 20px;
             background-color: rgba(255, 255, 255, 0.8);
             padding: 10px;
@@ -23,122 +23,113 @@
             margin-top: 10px;
         }
 
-        .image-container {
-            width: 150px;
-            height: 150px;
-            margin-right: 10px;
-            overflow: hidden;
-            float: left;
-            border: 10px solid #000;
-            position: relative;
-        }
+       
 
-        .image-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0.7;
-        }
-
-        .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
+    
         body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            
         }
 
         #map {
-            height: calc(100vh - 200px);
-            width: 100%;
-        }
+    height: 100vh;
+    width: 100%;
+}
 
-                /* Estilos para el botón de encendido/apagado */
-                .mapboxgl-ctrl-icon {
+ /* Estilos para el botón de encendido/apagado */
+         .mapboxgl-ctrl-icon {
             background-color: #fff;
             border: 1px solid #ccc;
             border-radius: 5px;
             padding: 5px 10px;
             cursor: pointer;
         }
+          /* Estilos para la tabla de información climática */
+          table {
+            position: absolute;
+            top: 30px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 999;
+        }
+
+        /* Estilos para el nuevo cuadro de resumen climático */
+        #clima-resumen {
+        position: absolute;
+        bottom: 20px; /* Ajusta la posición vertical deseada */
+        left: 20px;
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        z-index: 999;
+    }
+
+    #clima-container {
+            position: absolute;
+            top: 30px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 999;
+        }
     </style>
     <script>
+        // Función para calcular el promedio de un conjunto de números
+        function calcularPromedio(numbers) {
+            if (numbers.length === 0) return 0;
+            const sum = numbers.reduce((acc, num) => acc + num, 0);
+            return (sum / numbers.length).toFixed(2);
+        }
         var map;
         var sentinelLayerVisible = true; // Variable para rastrear el estado de la capa
         
-        function init() {
-            mapboxgl.accessToken =
-                'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
-            map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/satellite-streets-v10',
-                center: [-72.325, -38.6261],
-                zoom: 9,
-                attributionControl: false
-            });
-            map.addControl(new mapboxgl.AttributionControl({ compact: true }));
-            map.addControl(new mapboxgl.NavigationControl());
+        function init(_layer, fechaInicio, fechaFin, cargaInicial) {
+                mapboxgl.accessToken =
+                    'pk.eyJ1IjoiZWRpc29uYXJhIiwiYSI6ImNsY3Q3aXZueTB4YWwzb29mcGxtaTQ2OGwifQ.2ipUGSDRgpinf5pBmai0og';
+                map = new mapboxgl.Map({
+                    container: 'map',
+                    style: 'mapbox://styles/mapbox/satellite-streets-v10',
+                    center: [-72.325, -38.6261],
+                    zoom: 9,
+                    attributionControl: false
+                });
+                map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+                map.addControl(new mapboxgl.NavigationControl());
 
+                // Código de carga de imagen Sentinel Hub
+                var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
+                var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
 
-    // Obtén la referencia a la lista desplegable 'layer-selector'
-    var layerSelector = document.getElementById('layer-selector');
+                var timeRange = fechaInicio + '/' + fechaFin;
+                var params = {
+                    SERVICE: 'WMS',
+                    REQUEST: 'GetMap',
+                    LAYERS: _layer,
+                    FORMAT: 'image/png',
+                    WIDTH: '256',
+                    HEIGHT: '256',
+                    BBOX: '{bbox-epsg-3857}',
+                    TIME: timeRange
+                };
 
-    // Define las opciones de capa de Sentinel Hub
-    var layerOptions = [
-        { value: 'NDVI', label: 'NDVI' },
-        { value: 'FALSE-COLOR', label: 'FALSE-COLOR' },
-        { value: 'NATURAL-COLOR', label: 'NATURAL-COLOR' },
-    ];
-
-    // Recorre las opciones y agrégalas a la lista desplegable
-    layerOptions.forEach(function (option) {
-        var optionElement = document.createElement('option');
-        optionElement.value = option.value;
-        optionElement.textContent = option.label;
-        layerSelector.appendChild(optionElement);
-    });
-
-    // Agrega un evento onclick para cambiar el parámetro 'layer' en Sentinel Hub
-    layerSelector.onchange = function () {
-        var selectedLayer = layerSelector.value;
-        updateSentinelLayer(selectedLayer);
-    };
-
-            // Código de carga de imagen Sentinel Hub
-            var instanceId = '7922d058-6dd5-4654-ba39-239d8325863b';
-            var sentinelUrl = 'https://services.sentinel-hub.com/ogc/wms/' + instanceId;
-
-            var params = {
-                SERVICE: 'WMS',
-                REQUEST: 'GetMap',
-                LAYERS: 'NDVI',
-                FORMAT: 'image/png',
-                WIDTH: '256',
-                HEIGHT: '256',
-                BBOX: '{bbox-epsg-3857}',
-            };
-
-            map.on('load', function () {
-                map.addSource('sentinel-hub-wms', {
-        type: 'raster',
-        tileSize: 256,
-        tiles: function () {
-            params.LAYERS = document.getElementById('layer-selector').value;
-            return [
-                sentinelUrl + '?' +
-                Object.entries(params)
-                    .map((p) => p.join('='))
-                    .join('&'),
-            ];
-        }
-    });
-
+                map.on('load', function () {
+                    map.addSource('sentinel-hub-wms', {
+                        type: 'raster',
+                        tileSize: 256,
+                        tiles: [
+                            sentinelUrl + '?' +
+                                Object.entries(params)
+                                    .map((p) => p.join('='))
+                                    .join('&'),
+                        ],
+                    });
 
                 map.addLayer({
                     id: 'sentinel-hub-layer',
@@ -147,55 +138,49 @@
                     paint: {},
                 });
 
-        var toggleSentinelButton = document.createElement('button');
-            toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
-            toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
-            toggleSentinelButton.onclick = function () {
-                toggleSentinelLayer();
-            };
- // Agregar el botón al div "date-selector"
- document.getElementById('date-selector').appendChild(toggleSentinelButton);
+                if(cargaInicial == true)
+                {
+                    var toggleSentinelButton = document.createElement('button');
+                        toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
+                        toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
+                        toggleSentinelButton.onclick = function () {
+                            toggleSentinelLayer();
+                        };
 
-            map.addControl({
-                position: 'top-left',
-                element: toggleSentinelButton
-                
+                    // Agregar el botón al div "date-selector"
+                    document.getElementById('date-selector').appendChild(toggleSentinelButton);
+                        map.addControl({
+                            position: 'top-left',
+                            element: toggleSentinelButton
+                        });
+                }
             });
-             });
+            // Añadir el cuadro de resumen climático
+            var climaResumenContainer = document.createElement('div');
+            climaResumenContainer.id = 'clima-resumen';
+            document.body.appendChild(climaResumenContainer);
+
+            if (cargaInicial) {
+                obtenerInformacionClimatica(); // Llamar a la función al cargar la página
+            }
+        
         }
 
-        function updateSentinelLayer(selectedLayer) {
-    // Actualiza el parámetro 'LAYER' en los parámetros WMS
-    params.LAYERS = selectedLayer;
-
-    // Recarga la capa de Sentinel Hub
-    map.getSource('sentinel-hub-wms').tiles[0] = sentinelUrl + '?' +
-        Object.entries(params)
-            .map((p) => p.join('='))
-            .join('&');
-
-    // Cambia el estado de visibilidad según sea necesario
-    if (!sentinelLayerVisible) {
-        toggleSentinelLayer();
-    }
-}
-
-function toggleSentinelLayer() {
-    if (sentinelLayerVisible) {
-        map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
-    } else {
-        map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
-    }
-    sentinelLayerVisible = !sentinelLayerVisible;
-}
+        function toggleSentinelLayer() {
+            if (sentinelLayerVisible) {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
+            } else {
+                map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
+            }
+            sentinelLayerVisible = !sentinelLayerVisible; // Cambiar el estado
+        }
 
         function loadGeoJSON() {
             var input = document.getElementById('archivo-geo');
             var file = input.files[0];
-
             var reader = new FileReader();
             reader.onload = function (event) {
-                var geojson = JSON.parse(event.target.result);
+                let geojson = JSON.parse(event.target.result);
                 if (geojson) {
                     // Elimina la capa y la fuente del GeoJSON anterior si existen
                     if (map.getSource('custom-data')) {
@@ -218,7 +203,7 @@ function toggleSentinelLayer() {
                     });
 
                     // Ajustar la ubicación del mapa para mostrar todo el GeoJSON
-                    var bounds = new mapboxgl.LngLatBounds();
+                    let bounds = new mapboxgl.LngLatBounds();
                     geojson.features.forEach(function (feature) {
                         feature.geometry.coordinates[0].forEach(function (coord) {
                             bounds.extend(coord.slice(0, 2));
@@ -227,19 +212,182 @@ function toggleSentinelLayer() {
                     map.fitBounds(bounds, { padding: 180 });
                 }
             };
-          
+
             reader.readAsText(file);
         }
+        function layerSelector() {
+    var layerSelect = document.getElementById("layer-selector").value;
+    var fechaInicio = document.getElementById("start-date").value;
+    var fechaFin = document.getElementById("end-date").value;
+    if(fechaInicio != "" || fechaFin != "")
+    {
+        if(fechaInicio == "" || fechaFin == "")
+        {
+            alert("Debe seleccionar ambas fechas.");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else if(Date.parse(fechaFin) < Date.parse(fechaInicio)) {
+            alert("La fecha final debe ser mayor a la fecha inicial");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else if ((Date.parse(fechaFin) - Date.parse(fechaInicio))/(1000*60*60*24) > 10)
+        {
+            alert("El rango de busqueda de fechas es hasta 10 días");
+            document.getElementById("layer-selector").value = "NDVI"
+        }
+        else
+        {
+            init(layerSelect,fechaInicio,fechaFin, false);
+        }
+    }
+    else
+    {
+        init(layerSelect,fechaInicio,fechaFin, false);
+    }
+}
+function fechaSelector() {
+    var layerSelect = document.getElementById("layer-selector").value;
+    var fechaInicio = document.getElementById("start-date").value;
+    var fechaFin = document.getElementById("end-date").value;
+    if(fechaInicio == "" || fechaFin == "")
+    {
+        alert("Debe seleccionar ambas fechas.");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else  if(Date.parse(fechaFin) < Date.parse(fechaInicio)) {
+        alert("La fecha final debe ser mayor a la fecha inicial");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else if((Date.parse(fechaFin) - Date.parse(fechaInicio))/(1000*60*60*24) > 10)
+    {
+        alert("El rango de busqueda de fechas es hasta 10 días");
+        document.getElementById("layer-selector").value = "NDVI"
+    }
+    else
+    {
+        init(layerSelect,fechaInicio,fechaFin, false);
+    }
+}
+
+function obtenerInformacionClimatica() {
+    var apiKey = 'ecaf4a7ee8f9f1035a119f6cdc9f8e87'; // Reemplaza con tu clave de API real de OpenWeatherMap
+    var tabla = document.getElementById('clima-table');
+    var resumenClimatico = document.getElementById('clima-resumen');
+
+    // Nueva fecha para la fecha de inicio (hace 30 días)
+    var fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - 30);
+    fechaInicio = fechaInicio.toISOString().split('T')[0];
+
+    // Fecha de finalización (hoy)
+    var fechaFin = new Date().toISOString().split('T')[0];
+
+    // Función para actualizar los datos climáticos en la tabla
+    function actualizarDatosClimaticos(ciudad) {
+        fetch(`https://api.openweathermap.org/data/2.5/weather?q=${ciudad}&appid=${apiKey}`)
+            .then(response => response.json())
+            .then(data => {
+                // Obtener datos climáticos actuales
+                var fechaActual = new Date(data.dt * 1000).toLocaleDateString();
+                var temperaturaActual = (data.main.temp - 273.15).toFixed(2); // Convertir de Kelvin a Celsius
+                var descripcionClimaActual = data.weather[0].description;
+                var humedadActual = data.main.humidity;
+                var velocidadVientoActual = data.wind.speed;
+
+                // Actualizar la tabla con los datos climáticos actuales
+                var newRow = tabla.insertRow(tabla.rows.length);
+                var cell1 = newRow.insertCell(0);
+                var cell2 = newRow.insertCell(1);
+                var cell3 = newRow.insertCell(2);
+                var cell4 = newRow.insertCell(3);
+                var cell5 = newRow.insertCell(4);
+
+                cell1.innerHTML = fechaActual;
+                cell2.innerHTML = temperaturaActual;
+                cell3.innerHTML = descripcionClimaActual;
+                cell4.innerHTML = humedadActual;
+                cell5.innerHTML = velocidadVientoActual;
+
+                // Obtener datos climáticos históricos
+                fetch(`https://api.openweathermap.org/data/2.5/onecall/timemachine?lat=${latitud}&lon=${longitud}&dt=${Math.floor(new Date(fechaInicio) / 1000)}&appid=${apiKey}`)
+
+                    .then(response => response.json())
+                    .then(data => {
+                        // Aquí puedes procesar los datos históricos, calcular promedios, temperaturas máximas y mínimas, etc.
+                        // Los datos históricos estarán en data.hourly
+                        console.log(data.hourly);
+
+                        // Aquí puedes actualizar el cuadro de resumen climático para mostrar los datos históricos
+                        var ultimasTemperaturas = []; // Puedes calcular el promedio utilizando estos datos históricos
+                        var precipitacionAcumulada = 0; // Puedes acumular precipitaciones aquí
+                        var temperaturaMaxima = -Infinity; // Actualiza esto con la temperatura máxima histórica
+                        var temperaturaMinima = Infinity; // Actualiza esto con la temperatura mínima histórica
+
+                        resumenClimatico.innerHTML = `
+                            <h3>Resumen Climático</h3>
+                            <p>Promedio de Temperatura de los Últimos 30 Días: ${calcularPromedio(ultimasTemperaturas)} °C</p>
+                            <p>Acumulado de Precipitaciones: ${precipitacionAcumulada} mm</p>
+                            <p>Temperatura Máxima de los Últimos 30 Días: ${temperaturaMaxima} °C</p>
+                            <p>Temperatura Mínima de los Últimos 30 Días: ${temperaturaMinima} °C</p>
+                        `;
+                    })
+                    .catch(error => {
+                        console.error('Error al obtener datos climáticos históricos:', error);
+                    });
+            })
+            .catch(error => {
+                console.error('Error al obtener datos climáticos actuales:', error);
+            });
+    }
+// Obtener la ubicación actual del centro del mapa
+var center = map.getCenter();
+    var longitud = center.lng;
+    var latitud = center.lat;
+
+    // Utilizar coordenadas para determinar la ciudad
+    fetch(`https://api.openweathermap.org/data/2.5/find?lat=${latitud}&lon=${longitud}&cnt=1&appid=${apiKey}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.list && data.list.length > 0) {
+                var ciudad = data.list[0].name;
+                // Limpia la tabla antes de actualizarla
+                tabla.innerHTML = '';
+                // Agrega el encabezado de la tabla
+                tabla.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Temperatura (°C)</th>
+                            <th>Descripción del clima</th>
+                            <th>Humedad (%)</th>
+                            <th>Viento (km/h)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clima-table"></tbody>
+                `;
+                // Actualiza los datos climáticos
+                actualizarDatosClimaticos(ciudad);
+            }
+        })
+        .catch(error => {
+            console.error('Error al obtener datos de ubicación:', error);
+        });
+}
     </script>
+
+
+
+
 </head>
 
-<body onLoad="init()">
+<body onLoad="init('NDVI','','',true)">
     <div id="date-selector">
         <label for="start-date">Fecha de inicio:</label>
         <input type="date" id="start-date">
         
         <label for="end-date">Fecha de finalización:</label>
         <input type="date" id="end-date">
+        <button onclick="fechaSelector();" id="btn-fechas">Buscar por fecha:</button>
     
         <!-- Nuevo contenedor para el input de archivo GeoJSON y el botón de GeoJSON -->
         <div id="geojson-container">
@@ -247,13 +395,32 @@ function toggleSentinelLayer() {
         </div>
     
         <div><label for="layer-selector">Capas seleccionables:</label>
-            <select id="layer-selector"></select>
-        </div>
+            <select id="layer-selector" onchange="layerSelector();">
+                <option value="NDVI">NDVI</option>
+                <option value="FALSE-COLOR">FALSE-COLOR</option>
+                <option value="NATURAL-COLOR">NATURAL-COLOR</option>
+            </select></div>
         
 
         <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
         <button id="toggle-sentinel-button">Toggle Sentinel Image</button></div>
-        
+        <div id="clima-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Temperatura (°C)</th>
+                        <th>Descripción del clima</th>
+                        <th>Humedad (%)</th>
+                        <th>Viento (km/h)</th>
+                    </tr>
+                </thead>
+                <tbody id="clima-table">
+                    <!-- Aquí se agregarán las filas de datos climáticos -->
+                </tbody>
+            </table>
+            <button onclick="obtenerInformacionClimatica();">Obtener Información Climática</button>
+        </div> 
     <div id="map"></div>
 </body>
 </html>
