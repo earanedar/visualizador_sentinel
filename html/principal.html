@@ -6,11 +6,12 @@
     <title>Visor Ndvi</title>
     <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.css">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.12.0/mapbox-gl.js"></script>
-  
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    
     <style>
         #date-selector {
             position: absolute;
-            top: 20px;
+            top: 30px;
             left: 20px;
             background-color: rgba(255, 255, 255, 0.8);
             padding: 10px;
@@ -22,55 +23,30 @@
         #geojson-container {
             margin-top: 10px;
         }
-
-        .image-container {
-            width: 150px;
-            height: 150px;
-            margin-right: 10px;
-            overflow: hidden;
-            float: left;
-            border: 10px solid #000;
-            position: relative;
-        }
-
-        .image-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0.7;
-        }
-
-        .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
+    
         body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            
         }
 
         #map {
-            height: calc(100vh - 200px);
+            height: 100vh;
             width: 100%;
         }
 
-                /* Estilos para el botón de encendido/apagado */
-                .mapboxgl-ctrl-icon {
+        /* Estilos para el botón de encendido/apagado */
+         .mapboxgl-ctrl-icon {
             background-color: #fff;
             border: 1px solid #ccc;
             border-radius: 5px;
             padding: 5px 10px;
             cursor: pointer;
         }
-         /* Estilos para la tabla de información climática */
-         table {
+          /* Estilos para la tabla de información climática */
+          table {
             position: absolute;
-            top: 20px;
+            top: 30px;
             right: 20px;
             background-color: rgba(255, 255, 255, 0.8);
             padding: 10px;
@@ -78,8 +54,22 @@
             border-radius: 5px;
             z-index: 999;
         }
+
+        #clima-container {
+            position: absolute;
+            top: 30px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 999;
+        }
+
     </style>
     <script>
+         const colorRamp = [[0, 0xD8A115], [0.33, 0xF5FB0B], [0.67, 0x3EB42E], [1, 0x294825]];
+
         var map;
         var sentinelLayerVisible = true; // Variable para rastrear el estado de la capa
         
@@ -133,6 +123,7 @@
 
                 if(cargaInicial == true)
                 {
+                    createColorLegend(colorRamp);
                     var toggleSentinelButton = document.createElement('button');
                         toggleSentinelButton.innerHTML = 'Toggle Sentinel Image';
                         toggleSentinelButton.className = 'mapboxgl-ctrl-icon';
@@ -148,13 +139,25 @@
                         });
                 }
             });
+            // Añadir el cuadro de resumen climático
+            var climaResumenContainer = document.createElement('div');
+            climaResumenContainer.id = 'clima-resumen';
+            document.body.appendChild(climaResumenContainer);
+       
         }
 
+        var legendVisible = false; // Variable para rastrear el estado de la leyenda
         function toggleSentinelLayer() {
             if (sentinelLayerVisible) {
                 map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'none');
+                if (legendVisible) {
+                    document.getElementById('color-legend').style.display = 'none';
+                }
             } else {
                 map.setLayoutProperty('sentinel-hub-layer', 'visibility', 'visible');
+                if (legendVisible) {
+                    document.getElementById('color-legend').style.display = 'block';
+                }
             }
             sentinelLayerVisible = !sentinelLayerVisible; // Cambiar el estado
         }
@@ -200,35 +203,52 @@
             reader.readAsText(file);
         }
         function layerSelector() {
-    var layerSelect = document.getElementById("layer-selector").value;
-    var fechaInicio = document.getElementById("start-date").value;
-    var fechaFin = document.getElementById("end-date").value;
-    if(fechaInicio != "" || fechaFin != "")
-    {
-        if(fechaInicio == "" || fechaFin == "")
-        {
-            alert("Debe seleccionar ambas fechas.");
-            document.getElementById("layer-selector").value = "NDVI"
+            var layerSelect = document.getElementById("layer-selector").value;
+            var fechaInicio = document.getElementById("start-date").value;
+            var fechaFin = document.getElementById("end-date").value;
+            if (fechaInicio != "" || fechaFin != "") {
+                if (fechaInicio == "" || fechaFin == "") {
+                    alert("Debe seleccionar ambas fechas.");
+                    document.getElementById("layer-selector").value = "NDVI";
+                } else if (Date.parse(fechaFin) < Date.parse(fechaInicio)) {
+                    alert("La fecha final debe ser mayor a la fecha inicial");
+                    document.getElementById("layer-selector").value = "NDVI";
+                } else if ((Date.parse(fechaFin) - Date.parse(fechaInicio)) / (1000 * 60 * 60 * 24) > 10) {
+                    alert("El rango de búsqueda de fechas es de hasta 10 días");
+                    document.getElementById("layer-selector").value = "NDVI";
+                } else {
+                    init(layerSelect, fechaInicio, fechaFin, false);
+                }
+                // Mostrar u ocultar la leyenda según la capa seleccionada
+                if (layerSelect === 'NDVI') {
+                    if (sentinelLayerVisible) {
+                        document.getElementById('color-legend').style.display = 'block';
+                        legendVisible = true;
+                    } else {
+                        document.getElementById('color-legend').style.display = 'none';
+                        legendVisible = false;
+                    }
+                } else {
+                    document.getElementById('color-legend').style.display = 'none';
+                    legendVisible = false;
+                }
+            } else {
+                init(layerSelect, fechaInicio, fechaFin, false);
+                // Mostrar u ocultar la leyenda según la capa seleccionada
+                if (layerSelect === 'NDVI') {
+                    if (sentinelLayerVisible) {
+                        document.getElementById('color-legend').style.display = 'block';
+                        legendVisible = true;
+                    } else {
+                        document.getElementById('color-legend').style.display = 'none';
+                        legendVisible = false;
+                    }
+                } else {
+                    document.getElementById('color-legend').style.display = 'none';
+                    legendVisible = false;
+                }
+            }
         }
-        else if(Date.parse(fechaFin) < Date.parse(fechaInicio)) {
-            alert("La fecha final debe ser mayor a la fecha inicial");
-            document.getElementById("layer-selector").value = "NDVI"
-        }
-        else if ((Date.parse(fechaFin) - Date.parse(fechaInicio))/(1000*60*60*24) > 10)
-        {
-            alert("El rango de busqueda de fechas es hasta 10 días");
-            document.getElementById("layer-selector").value = "NDVI"
-        }
-        else
-        {
-            init(layerSelect,fechaInicio,fechaFin, false);
-        }
-    }
-    else
-    {
-        init(layerSelect,fechaInicio,fechaFin, false);
-    }
-}
 function fechaSelector() {
     var layerSelect = document.getElementById("layer-selector").value;
     var fechaInicio = document.getElementById("start-date").value;
@@ -253,24 +273,68 @@ function fechaSelector() {
     }
 }
 
-
- // Función para obtener información climática basada en coordenadas
-function obtenerInformacionClimatica() {
+function obtenerInformacionClimatica(cargaInicial) {
+    if(cargaInicial)
+    {
     var apiKey = 'ecaf4a7ee8f9f1035a119f6cdc9f8e87'; // Reemplaza con tu clave de API real de OpenWeatherMap
     var tabla = document.getElementById('clima-table');
-    
+    var resumenClimatico = document.getElementById('clima-resumen');
+
+    // Nueva fecha para la fecha de inicio (hace 30 días)
+    var fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - 30);
+    fechaInicio = fechaInicio.toISOString().split('T')[0];
+
+    // Fecha de finalización (hoy)
+    var fechaFin = new Date().toISOString().split('T')[0];
+
     // Función para actualizar los datos climáticos en la tabla
     function actualizarDatosClimaticos(ciudad) {
         fetch(`https://api.openweathermap.org/data/2.5/weather?q=${ciudad}&appid=${apiKey}`)
             .then(response => response.json())
             .then(data => {
-                var fecha = new Date(data.dt * 1000).toLocaleDateString();
-                var temperatura = (data.main.temp - 273.15).toFixed(2); // Convertir de Kelvin a Celsius
-                var descripcionClima = data.weather[0].description;
-                var humedad = data.main.humidity;
-                var velocidadViento = data.wind.speed;
+                // Obtener datos climáticos actuales
+                var fechaActual = new Date(data.dt * 1000).toLocaleDateString();
+                var temperaturaActual = (data.main.temp - 273.15).toFixed(2); // Convertir de Kelvin a Celsius
+                var descripcionClimaActual = data.weather[0].description;
+                var humedadActual = data.main.humidity;
+                var velocidadVientoActual = data.wind.speed;
 
-                // Limpia la tabla antes de agregar nuevos datos
+                // Actualizar la tabla con los datos climáticos actuales
+                var newRow = tabla.insertRow(tabla.rows.length);
+                var cell1 = newRow.insertCell(0);
+                var cell2 = newRow.insertCell(1);
+                var cell3 = newRow.insertCell(2);
+                var cell4 = newRow.insertCell(3);
+                var cell5 = newRow.insertCell(4);
+
+                cell1.innerHTML = fechaActual;
+                cell2.innerHTML = temperaturaActual;
+                cell3.innerHTML = descripcionClimaActual;
+                cell4.innerHTML = humedadActual;
+                cell5.innerHTML = velocidadVientoActual;
+
+              
+            })
+            .catch(error => {
+                console.error('Error al obtener datos climáticos actuales:', error);
+            });
+    }
+}
+// Obtener la ubicación actual del centro del mapa
+var center = map.getCenter();
+    var longitud = center.lng;
+    var latitud = center.lat;
+
+    // Utilizar coordenadas para determinar la ciudad
+    fetch(`https://api.openweathermap.org/data/2.5/find?lat=${latitud}&lon=${longitud}&cnt=1&appid=${apiKey}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.list && data.list.length > 0) {
+                var ciudad = data.list[0].name;
+                // Limpia la tabla antes de actualizarla
+                tabla.innerHTML = '';
+                // Agrega el encabezado de la tabla
                 tabla.innerHTML = `
                     <thead>
                         <tr>
@@ -283,37 +347,7 @@ function obtenerInformacionClimatica() {
                     </thead>
                     <tbody id="clima-table"></tbody>
                 `;
-
-                // Agrega una fila con los datos climáticos
-                var newRow = tabla.insertRow(tabla.rows.length);
-                var cell1 = newRow.insertCell(0);
-                var cell2 = newRow.insertCell(1);
-                var cell3 = newRow.insertCell(2);
-                var cell4 = newRow.insertCell(3);
-                var cell5 = newRow.insertCell(4);
-
-                cell1.innerHTML = fecha;
-                cell2.innerHTML = temperatura;
-                cell3.innerHTML = descripcionClima;
-                cell4.innerHTML = humedad;
-                cell5.innerHTML = velocidadViento;
-            })
-            .catch(error => {
-                console.error('Error al obtener datos climáticos:', error);
-            });
-    }
-
-    // Obtener la ubicación actual del centro del mapa
-    var center = map.getCenter();
-    var longitud = center.lng;
-    var latitud = center.lat;
-
-    // Utilizar coordenadas para determinar la ciudad
-    fetch(`https://api.openweathermap.org/data/2.5/find?lat=${latitud}&lon=${longitud}&cnt=1&appid=${apiKey}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.list && data.list.length > 0) {
-                var ciudad = data.list[0].name;
+                // Actualiza los datos climáticos
                 actualizarDatosClimaticos(ciudad);
             }
         })
@@ -321,29 +355,39 @@ function obtenerInformacionClimatica() {
             console.error('Error al obtener datos de ubicación:', error);
         });
 }
+// Funcion para colores de escala
+function createColorLegend(colorRamp) {
+    const legendContainer = document.createElement('div');
+    legendContainer.id = 'color-legend';
+    legendContainer.style.position = 'absolute';
+    legendContainer.style.bottom = '20px';
+    legendContainer.style.left = '20px';
+    legendContainer.style.background = 'rgba(255, 255, 255, 0.8)';
+    legendContainer.style.padding = '10px';
+    legendContainer.style.border = '1px solid #ccc';
+    legendContainer.style.borderRadius = '5px';
+    legendContainer.style.zIndex = '999';
 
-map.on('moveend', function () {
-    obtenerInformacionClimatica(); // Actualiza los datos climáticos cuando el mapa se mueve
-});
+    const legendTitle = document.createElement('div');
+    legendTitle.textContent = 'Leyenda de Colores';
+    legendTitle.style.fontWeight = 'bold';
+    legendContainer.appendChild(legendTitle);
+
+    colorRamp.forEach((color, index) => {
+        const colorStop = document.createElement('div');
+        colorStop.style.backgroundColor = `#${color[1].toString(16)}`;
+        colorStop.style.height = '20px';
+        colorStop.style.width = '50px';
+        colorStop.style.display = 'inline-block';
+        colorStop.style.marginRight = '0px';
+        colorStop.textContent = (index * 0.33).toFixed(2);
+        legendContainer.appendChild(colorStop);
+    });
+
+    document.body.appendChild(legendContainer);
+}
+
     </script>
-
-
-<table>
-    <thead>
-        <tr>
-            <th>Fecha</th>
-            <th>Temperatura (°C)</th>
-            <th>Descripción del clima</th>
-            <th>Humedad (%)</th>
-            <th>Viento (km/h)</th>
-        </tr>
-    </thead>
-    <tbody id="clima-table">
-        <!-- Aquí se agregarán las filas de datos climáticos -->
-    </tbody>
-</table>
-
-
 </head>
 
 <body onLoad="init('NDVI','','',true)">
@@ -370,7 +414,23 @@ map.on('moveend', function () {
 
         <!-- Botón de encendido/apagado de la imagen de Sentinel Hub -->
         <button id="toggle-sentinel-button">Toggle Sentinel Image</button></div>
-        <button onclick="obtenerInformacionClimatica();">Obtener Información Climática</button>
+        <div id="clima-container">
+            <table>
+                <!-- <thead>
+                    <tr>
+                        <th>Fechaaaa</th>
+                        <th>Temperatura (°C)</th>
+                        <th>Descripción del clima</th>
+                        <th>Humedad (%)</th>
+                        <th>Viento (km/h)</th>
+                    </tr>
+                </thead> -->
+                <tbody id="clima-table">
+                    <!-- Aquí se agregarán las filas de datos climáticos -->
+                </tbody>
+            </table>
+            <button onclick="obtenerInformacionClimatica(true);">Obtener Información Climática</button>
+        </div> 
     <div id="map"></div>
 </body>
 </html>
